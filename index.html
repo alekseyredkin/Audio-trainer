@@ -623,7 +623,11 @@ function speakCurrentWord(word) {
                 pauseTimeout = setTimeout(showAndSpeakRu, pauseMs);
             }
         };
-
+		enUtterance.onpause = () => {
+    		if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+   		}
+		};
         enUtterance.onerror = (e) => {
             console.error('EN speech error:', e);
             forceNextWord(`en-onerror: ${e.error}`);
