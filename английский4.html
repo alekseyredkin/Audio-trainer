@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=5.0">
+    <title>Аудио-тренажёр</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-opaque" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Тренажёр">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn.icons-png.flaticon.com/512/3898/3898084.png">
+    <link rel="icon" href="https://cdn.icons-png.flaticon.com/512/3898/3898084.png">
+    <style>
+        :root { --primary: #2c6e9b; --secondary: #4a9eff; --bg: #f8fbff; --card-bg: rgba(255, 255, 255, 0.95); --text: #1e2f3e; --danger: #e74c3c; }
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #d4eaf7 0%, #f0f9fe 100%); color: var(--text); margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 500px; background: var(--card-bg); border-radius: 30px; padding: 40px 25px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
+        .progress-container { position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: #dfe9f0; }
+        #progress-bar { height: 100%; width: 0%; background: var(--secondary); transition: width 0.4s ease; }
+        .screen { display: none; animation: fadeIn 0.3s ease; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        h1 { font-size: 1.8rem; text-align: center; color: var(--primary); margin-top: 0; }
+        .mode-switch { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .mode-btn { flex: 1; padding: 12px; border-radius: 15px; border: 2px solid var(--primary); background: white; color: var(--primary); font-weight: 600; cursor: pointer; transition: 0.3s; }
+        .mode-btn.active { background: var(--primary); color: white; }
+        .settings-panel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding: 15px; border: 1px solid #cde3f2; border-radius: 20px; background: rgba(255,255,255,0.5); }
+        .checkbox-container { display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; font-weight: 600; color: var(--primary); font-size: 0.9rem; }
+        .checkbox-container input { width: 18px; height: 18px; cursor: pointer; }
+        .levels-grid { display: grid; gap: 12px; }
+        .level-btn { background: white; border: 1px solid #cde3f2; padding: 16px; border-radius: 15px; font-size: 1.1rem; font-weight: 600; color: var(--primary); cursor: pointer; text-align: left; width: 100%; transition: background 0.2s; }
+        .level-btn:active { background: #eef7ff; }
+        .word-area { text-align: center; min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        #word-en { font-size: 3rem; font-weight: 800; color: #0a4c6e; margin-bottom: 10px; transition: transform 0.2s, color 0.2s; }
+        #word-en.speaking { color: var(--secondary); transform: scale(1.05); }
+        #word-ru { font-size: 1.8rem; color: var(--primary); opacity: 0; visibility: hidden; transition: opacity 0.3s ease; height: 40px; }
+        #word-ru.visible { opacity: 1; visibility: visible; }
+        .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 40px; }
+        .stop-btn { background: var(--danger); color: white; border: none; padding: 12px 24px; border-radius: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3); }
+        .error-msg { color: var(--danger); font-size: 0.9rem; text-align: center; margin-top: 10px; min-height: 20px; }
+        /* Accessibility focus styles */
+        button:focus-visible, input:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
+        [role="progressbar"] { transition: width 0.3s ease; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="progress-container">
+        <div id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+    
+     <div id="menu-screen" class="screen active">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <h1 style="margin:0;">📖 Аудио-тренажёр</h1>
+            <a href="https://tips.yandex.ru/guest/payment/8873200" target="_blank" style="display:inline-block;padding:12px 24px;background:#FFCC00;color:black;border-radius:8px;text-decoration:none;font-family:sans-serif;font-weight:bold;">
+                ☕ Поблагодарить анонимно через Яндекс
+            </a>
+        </div>
+        <div class="mode-switch">
+            <button id="mode-learn" class="mode-btn active" onclick="setMode('learn')" aria-pressed="true">📘 Изучение</button>
+            <button id="mode-review" class="mode-btn" onclick="setMode('review')" aria-pressed="false">📗 Повторение</button>
+        </div>
+        <div class="settings-panel">
+            <label class="checkbox-container">
+                <input type="checkbox" id="loop-same-theme" onclick="toggleExclusive(this, 'loop-random-themes')" aria-label="Повторять одну тему"> 
+                🔄 Цикл одной темы
+            </label>
+            <label class="checkbox-container">
+                <input type="checkbox" id="loop-random-themes" onclick="toggleExclusive(this, 'loop-same-theme')" aria-label="Случайные темы"> 
+                🎲 Цикл случайные темы
+            </label>
+        </div>
+        <div class="levels-grid" id="levels-list"></div>
+        <div id="menu-error" class="error-msg"></div>
+    </div>
+
+    <!-- Тренажер -->
+    <div id="trainer-screen" class="screen">
+        <div class="word-area">
+            <div id="word-en" aria-live="polite">...</div>
+            <div id="word-ru" aria-live="polite">...</div>
+            <div class="controls">
+                <button id="stop-loop-btn" class="stop-btn" onclick="returnToMenu()" aria-label="Остановить и вернуться в меню">⏹     </button>
+            </div>
+        </div>
+        <div id="trainer-error" class="error-msg"></div>
+    </div>
+
+    <!-- Результат -->
+    <div id="result-screen" class="screen">
+        <h1>🏆 Завершено!</h1>
+        <div style="font-size: 2.5rem; text-align: center; margin: 30px 0;" id="final-score" aria-live="polite">0</div>
+        <button class="level-btn" style="text-align: center;" onclick="returnToMenu()" aria-label="Вернуться в меню">⟳ В меню</button>
+    </div>
+</div>
+
+<script>
+// ============================================
+// НАСТРОЙКИ
+// ============================================
+const MODES = {
+    learn: { translationDelay: 1500, autoNextDelay: 2500 }, 
+    review: { translationDelay: 600, autoNextDelay: 1200 }  
+};
+
+// Полная база данных (восстановлена)
+const WORD_LEVELS = {
+    level1: { 
+    title: '👨‍👩‍👧 Семья', 
+    data: `Father - отец; Mother - мать; Son - сын; Daughter - дочь; Brother - брат; Sister - сестра; Grandfather - дедушка; Grandmother - бабушка; Uncle - дядя; Aunt - тетя; Cousin - двоюродный родственник; Nephew - племянник; Niece - племянница; Parents - родители; Children - дети; Husband - муж; Wife - жена; Baby - младенец; Twins - близнецы; Relative - родственник; Family - семья; Grandson - внук; Granddaughter - внучка; Mother-in-law - тёща  свекровь; Father-in-law - тесть  свёкор; Stepmother - мачеха; Stepfather - отчим; Godfather - крёстный отец; Godmother - крёстная мать; Sibling - брат или сестра` 
+},
+level2: { 
+    title: '💼 Работа и Бизнес', 
+    data: `Company - компания; Employee - сотрудник; Boss - начальник; Salary - зарплата; Meeting - встреча; Contract - контракт; Experience - опыт; Skill - навык; Goal - цель; Success - успех; Deadline - крайний срок; Project - проект; Career - карьера; Office - офис; Colleague - коллега; Business - бизнес; Client - клиент; Customer - покупатель; Manager - менеджер; Team - команда; Task - задача; Promotion - повышение; Profit - прибыль; Loss - убыток; Invoice - счёт-фактура; Interview - собеседование; Application - резюме  заявка; Resignation - увольнение; Retirement - выход на пенсию; Overtime - сверхурочная работа` 
+},
+level3: { 
+    title: '✈️ Путешествия', 
+    data: `Airport - аэропорт; Ticket - билет; Hotel - отель; Passport - паспорт; Luggage - багаж; Flight - полет; Destination - пункт назначения; Map - карта; Tourist - турист; Journey - путешествие; Sightseeing - осмотр достопримечательностей; Customs - таможня; Departure - отправление; Arrival - прибытие; Guide - гид; Suitcase - чемодан; Backpack - рюкзак; Reservation - бронирование; Check-in - регистрация; Boarding pass - посадочный талон; Terminal - терминал; Gate - выход на посадку; Delay - задержка; Currency - валюта; Exchange rate - обменный курс; Souvenir - сувенир; Postcard - открытка; Travel agency - турагентство; Cruise - круиз; Excursion - экскурсия` 
+},
+    level4: { 
+        title: '🍎 Еда и Напитки', 
+        data: `Breakfast - завтрак; Dinner - ужин; Vegetable - овощ; Fruit - фрукт; Delicious - вкусный; Hunger - голод; Water - вода; Bread - хлеб; Meat - мясо; Sugar - сахар; Dessert - десерт; Beverage - напиток; Healthy - здоровый; Recipe - рецепт; Kitchen - кухня; Lunch - обед; Snack - перекус; Soup - суп; Salad - салат; Cheese - сыр; Egg - яйцо; Fish - рыба; Chicken - курица; Rice - рис; Pasta - макароны; Cake - торт; Juice - сок; Tea - чай; Coffee - кофе; Milk - молоко` 
+    },
+    level5: { 
+        title: '🏫 Школа и Уроки', 
+        data: `School - школа; Lesson - урок; Teacher - учитель; Student - ученик; Subject - предмет; Homework - домашнее задание; Grade - оценка  класс; Timetable - расписание; Break - перемена; Knowledge - знания; Education - образование; Learning - обучение; Exam - экзамен; Test - тест; Study - учиться  изучать; Pupil - учащийся; Classmate - одноклассник; Principal - директор школы; Term - четверть  семестр; Diploma - диплом; Certificate - свидетельство  аттестат; Course - курс; Lecture - лекция; Practice - практика; Theory - теория; Mistake - ошибка; Correct - правильный; Explain - объяснять; Understand - понимать; Memorize - запоминать` 
+    },
+    level6: { 
+        title: '📚 Предметы', 
+        data: `English - английский; Mathematics - математика; History - история; Geography - география; Biology - биология; Chemistry - химия; Physics - физика; Literature - литература; Art - рисование; Music - музыка; Sport - спорт; Language - язык; Science - наука; Drawing - рисование; Reading - чтение; Social studies - обществознание; Computer science - информатика; Physical education - физкультура; Economics - экономика; Law - право; Psychology - психология; Philosophy - философия; Astronomy - астрономия; Ecology - экология; Engineering - инженерное дело; Medicine - медицина; Architecture - архитектура; Accounting - бухгалтерский учёт; Journalism - журналистика; Linguistics - лингвистика` 
+    },
+    level7: { 
+        title: '✏️ Принадлежности', 
+        data: `Pen - ручка; Pencil - карандаш; Eraser - ластик; Ruler - линейка; Notebook - тетрадь; Book - книга; Bag - сумка  рюкзак; Sharpener - точилка; Glue - клей; Scissors - ножницы; Paper - бумага; Folder - папка; Marker - маркер; Highlighter - текстовыделитель; Case - пенал; Calculator - калькулятор; Compass - циркуль; Protractor - транспортир; Stapler - степлер; Staple remover - антистеплер; Hole punch - дырокол; Paper clip - скрепка; Thumbtack - кнопка; Sticky note - стикер; Whiteboard - маркерная доска; Chalk - мел; Sponge - губка; Paintbrush - кисточка; Palette - палитра; Sketchbook - альбом для рисования` 
+    },
+    level8: { 
+        title: '🚪 В классе', 
+        data: `Board - доска; Desk - парта; Chair - стул; Window - окно; Door - дверь; Wall - стена; Floor - пол; Clock - часы; Map - карта; Computer - компьютер; Projector - проектор; Library - библиотека; Classroom - классная комната; Hall - коридор; Bench - скамья; Blackboard - меловая доска; Screen - экран; Speaker - колонка; Microphone - микрофон; Headphones - наушники; Printer - принтер; Scanner - сканер; Photocopier - копировальный аппарат; Shelf - полка; Cupboard - шкаф; Drawer - ящик; Bulletin board - доска объявлений; Poster - плакат; Globe - глобус` 
+    },
+    level9: { 
+        title: '👋 Приветствия и Вежливость', 
+        data: `Hello - привет; Goodbye - пока; Please - пожалуйста; Thank you - спасибо; Sorry - прости; Yes - да; No - нет; Friend - друг; Name - имя; Morning - утро; Evening - вечер; Night - ночь; Mr - мистер; Mrs - миссис; How are you - как дела; Good morning - доброе утро; Good evening - добрый вечер; Good night - спокойной ночи; Nice to meet you - приятно познакомиться; Excuse me - извините  простите; Youre welcome - пожалуйста (в ответ); Pardon - простите?; See you later - увидимся позже; Take care - береги себя; Welcome - добро пожаловать; Cheers - спасибо    ваше здоровье!; Congratulations - поздравляю; Good luck - удачи; Bless you - будьте здоровы; My pleasure - с удовольствием` 
+    },
+    level10: { 
+        title: '🔢 Числа', 
+        data: `One - один; Two - два; Three - три; Four - четыре; Five - пять; Six - шесть; Seven - семь; Eight - восемь; Nine - девять; Ten - десять; Eleven - одиннадцать; Twelve - двенадцать; Thirteen - тринадцать; Fourteen - четырнадцать; Fifteen - пятнадцать; Sixteen - шестнадцать; Seventeen - семнадцать; Eighteen - восемнадцать; Nineteen - девятнадцать; Twenty - двадцать; Thirty - тридцать; Forty - сорок; Fifty - пятьдесят; Sixty - шестьдесят; Seventy - семьдесят; Eighty - восемьдесят; Ninety - девяносто; Hundred - сто; Thousand - тысяча; Million - миллион` 
+    },
+    level11: { 
+        title: '🎨 Цвета', 
+        data: `Red - красный; Blue - синий; Green - зелёный; Yellow - жёлтый; Black - чёрный; White - белый; Brown - коричневый; Pink - розовый; Purple - фиолетовый; Orange - оранжевый; Grey - серый; Gold - золотой; Silver - серебряный; Light - светлый; Dark - тёмный; Beige - бежевый; Turquoise - бирюзовый; Crimson - малиновый; Violet - фиалковый; Indigo - индиго; Navy - тёмно-синий; Cyan - голубой; Magenta - пурпурный; Lime - лаймовый; Mint - мятный; Peach - персиковый; Coral - коралловый; Lavender - лавандовый; Ivory - слоновая кость; Maroon - бордовый` 
+    },
+    level12: { 
+        title: '📅 Дни и Месяцы', 
+        data: `Monday - понедельник; Tuesday - вторник; Wednesday - среда; Thursday - четверг; Friday - пятница; Saturday - суббота; Sunday - воскресенье; January - январь; February - февраль; March - март; April - апрель; May - май; June - июнь; July - июль; August - август; September - сентябрь; October - октябрь; November - ноябрь; December - декабрь; Week - неделя; Month - месяц; Year - год; Day - день; Weekend - выходные; Holiday - праздник; Calendar - календарь; Date - дата; Season - время года; Today - сегодня; Tomorrow - завтра` 
+    },
+    level13: { 
+        title: '⏰ Время', 
+        data: `Clock - часы; Watch - наручные часы; Hour - час; Minute - минута; Second - секунда; Morning - утро; Afternoon - день; Evening - вечер; Night - ночь; Today - сегодня; Tomorrow - завтра; Yesterday - вчера; Now - сейчас; Later - позже; Early - рано; Midnight - полночь; Noon - полдень; Time - время; Alarm - будильник; Schedule - расписание; Moment - момент; Soon - скоро; Always - всегда; Never - никогда; Sometimes - иногда; Often - часто; Rarely - редко; Half - половина; Quarter - четверть; Timer - таймер` 
+    },
+    level14: { 
+        title: '👗 Одежда', 
+        data: `Dress - платье; Shirt - рубашка; T-shirt - футболка; Trousers - брюки; Jeans - джинсы; Jacket - куртка; Coat - пальто; Hat - шапка; Cap - кепка; Shoes - туфли; Boots - ботинки; Socks - носки; Scarf - шарф; Gloves - перчатки; Sweater - свитер; Skirt - юбка; Suit - костюм; Tie - галстук; Belt - ремень; Underwear - нижнее бельё; Pyjamas - пижама; Shorts - шорты; Sandals - сандалии; Slippers - тапочки; Raincoat - плащ; Hoodie - толстовка с капюшоном; Uniform - форма; Blouse - блузка; Vest - жилет; Swimsuit - купальник` 
+    },
+    level15: { 
+        title: '🐶 Животные', 
+        data: `Cat - кошка; Dog - собака; Bird - птица; Fish - рыба; Horse - лошадь; Cow - корова; Pig - свинья; Sheep - овца; Rabbit - кролик; Hen - курица; Duck - утка; Frog - лягушка; Bear - медведь; Fox - лиса; Wolf - волк; Lion - лев; Tiger - тигр; Elephant - слон; Monkey - обезьяна; Snake - змея; Mouse - мышь; Rat - крыса; Parrot - попугай; Turtle - черепаха; Shark - акула; Whale - кит; Dolphin - дельфин; Eagle - орёл; Deer - олень; Camel - верблюд` 
+    },
+level16: { 
+    title: '🌦 Погода и Природа', 
+    data: `Sun - солнце; Rain - дождь; Snow - снег; Wind - ветер; Cloud - облако; Sky - небо; Tree - дерево; Flower - цветок; River - река; Sea - море; Mountain - гора; Forest - лес; Weather - погода; Cold - холодно; Hot - жарко; Storm - шторм; Thunder - гром; Lightning - молния; Rainbow - радуга; Fog - туман; Ice - лёд; Lake - озеро; Ocean - океан; Island - остров; Desert - пустыня; Valley - долина; Hill - холм; Star - звезда; Moon - луна; Planet - планета` 
+},
+level17: { 
+    title: '🔠 Топ‑50 самых употребляемых слов', 
+    data: `the - определённый артикль; be - быть; to - к    в    для; of - из    о    от; and - и; a - неопределённый артикль; in - в; that - тот    что; have - иметь; I - я; it - оно    это (неодуш.); for - для    за; not - не; on - на; with - с; he - он; as - как    в качестве; you - ты    вы; do - делать; at - в    на (место  время); this - этот    это; but - но; his - его; by - у    при    к; from - из    от; they - они; we - мы; say - сказать    говорить; her - её; she - она; or - или; an - неопределённый артикль перед гласной; will - будет    воля; my - мой; one - один; all - все    весь; would - бы (сослагательное); there - там; their - их; what - что    какой; so - так    итак; up - вверх; out - вне    из; if - если; about - о    около; who - кто; get - получать    становиться; which - который    какой; go - идти    ехать; me - меня    мне` 
+},
+level18: { 
+    title: '🔠 Следующие 50 самых употребляемых слов', 
+    data: `when - когда; make - делать    создавать; can - мочь    уметь; like - нравиться    как; time - время; no - нет    никакой; just - только что    просто; him - его    ему; know - знать; take - брать    взять; people - люди    народ; into - в    внутрь; year - год; your - твой    ваш; good - хороший; some - немного    некоторые; could - мог    мог бы; them - их    им; see - видеть; other - другой; than - чем; then - затем    тогда; now - сейчас; look - смотреть    взгляд; only - только    единственный; come - приходить    приезжать; its - его    её (неодуш.); over - над    через; think - думать; also - также; back - назад    спина; after - после; use - использовать; two - два; how - как; our - наш; work - работа    работать; first - первый; well - хорошо; way - путь    способ; even - даже; new - новый; want - хотеть; because - потому что; any - любой    никакой; these - эти; give - давать; day - день; most - большинство    самый; us - нас    нам` 
+},
+level19: { 
+    title: '🏙 Дом и Город', 
+    data: `House - дом; Flat - квартира; Room - комната; Living room - гостиная; Bedroom - спальня; Bathroom - ванная; Kitchen - кухня; Garden - сад; Wall - стена; Floor - пол; Ceiling - потолок; Window - окно; Door - дверь; Street - улица; Road - дорога; City - город; Town - городок; Shop - магазин; Supermarket - супермаркет; Hospital - больница; School - школа; Park - парк; Cinema - кинотеатр; Theatre - театр; Museum - музей; Library - библиотека; Pharmacy - аптека; Bank - банк; Restaurant - ресторан; Cafe - кафе` 
+},
+level20: { 
+    title: '😊 Эмоции и Качества', 
+    data: `Happy - счастливый; Sad - грустный; Angry - злой; Scared - испуганный; Tired - уставший; Bored - скучающий; Excited - воодушевленный; Surprised - удивленный; Kind - добрый; Brave - смелый; Clever - умный; Funny - смешной; Strong - сильный; Weak - слабый; Beautiful - красивый; Ugly - уродливый; Fast - быстрый; Slow - медленный; Big - большой; Small - маленький; Hot - горячий; Cold - холодный; Rich - богатый; Poor - бедный; Friendly - дружелюбный; Quiet - тихий; Noisy - шумный; Honest - честный; Lazy - ленивый; Hard-working - трудолюбивый` 
+},
+level21: { 
+    title: '🏫 Школьные фразы', 
+    data: `Can I come in? - Можно войти?; I'm sorry I m late - Извините за опоздание; May I go out? - Можно выйти?; Open your books - Откройте книги; Close your books - Закройте книги; Look at the board - Посмотрите на доску; Listen to me - Слушайте меня; Repeat after me - Повторяйте за мной; Read aloud - Читайте вслух; Write it down - Запишите это; Raise your hand - Поднимите руку; Be quiet please - Пожалуйста, соблюдайте тишину; Turn to page... - Откройте страницу...; Do you understand? - Вы понимаете?; I don't understand - Я не понимаю; What page are we on? - На какой мы странице?; Can you repeat that? - Можете повторить?; May I answer? - Можно мне ответить?; Who knows the answer? - Кто знает ответ?; Work in pairs - Работайте в парах; Open your notebooks - Откройте тетради; Put away your things - Уберите свои вещи; Do your homework - Сделай домашнее задание; Let's start the lesson - Давайте начнем урок; Any questions? - Есть вопросы?; Correct the mistake - Исправь ошибку; Read and translate - Прочитай и переведи; Who is absent today? - Кто сегодня отсутствует?; Close the window - Закройте окно; Open the door - Откройте дверь` 
+},
+level22: { 
+    title: '🔄 Неправильные глаголы', 
+    data: `be (was  were, been) - быть; have (had, had) - иметь; do (did, done) - делать; say (said, said) - сказать; go (went, gone) - идти; get (got, got) - получать; make (made, made) - создавать; know (knew, known) - знать; think (thought, thought) - думать; take (took, taken) - брать; see (saw, seen) - видеть; come (came, come) - приходить; find (found, found) - находить; give (gave, given) - давать; tell (told, told) - рассказывать; feel (felt, felt) - чувствовать; become (became, become) - становиться; leave (left, left) - покидать  уезжать; put (put, put) - класть; mean (meant, meant) - значить; keep (kept, kept) - хранить; let (let, let) - позволять; begin (began, begun) - начинать; show (showed, shown) - показывать; write (wrote, written) - писать; read (read, read) - читать` 
+},
+level23: { 
+    title: '✅ Базовые правильные глаголы', 
+    data: `like (liked) - любить  нравиться; love (loved) - любить; want (wanted) - хотеть; need (needed) - нуждаться; help (helped) - помогать; talk (talked) - разговаривать; listen (listened) - слушать; watch (watched) - смотреть; play (played) - играть; work (worked) - работать; live (lived) - жить; call (called) - звонить  называть; ask (asked) - спрашивать; answer (answered) - отвечать; open (opened) - открывать; close (closed) - закрывать; start (started) - начинать; stop (stopped) - останавливаться; try (tried) - пытаться; use (used) - использовать; look (looked) - смотреть; clean (cleaned) - чистить  убирать; cook (cooked) - готовить; dance (danced) - танцевать; smile (smiled) - улыбаться` 
+},
+level24: { 
+    title: '🎨 Хобби и Досуг', 
+    data: `Hobby - хобби; Painting - рисование красками; Drawing - рисование карандашом; Reading - чтение; Dancing - танцы; Singing - пение; Fishing - рыбалка; Travelling - путешествия; Photography - фотография; Collecting - коллекционирование; Chess - шахматы; Gaming - видеоигры; Sport - спорт; Hiking - походы; Camping - кемпинг; Musical instrument - музыкальный инструмент; Playing football - игра в футбол; Drawing pictures - рисование картин; Reading books - чтение книг; Watching movies - просмотр фильмов; Listening to music - прослушивание музыки` 
+},
+level25: { 
+    title: '💻 Технологии', 
+    data: `Computer - компьютер; Laptop - ноутбук; Keyboard - клавиатура; Mouse - мышь; Screen - экран; Internet - интернет; Website - веб-сайт; Password - пароль; File - файл; Folder - папка; Download - скачивать; Upload - загружать; Message - сообщение; Email - электронная почта; Social networks - соцсети; App - приложение; Search engine - поисковик; Wi-Fi - вай-фай; Online - онлайн; Offline - офлайн; Link - ссылка; Software - программное обеспечение; Device - устройство; Tablet - планшет; Smartphone - смартфон` 
+},
+level26: { 
+    title: '👤 Тело и Здоровье', 
+    data: `Head - голова; Face - лицо; Eye - глаз; Nose - нос; Mouth - рот; Ear - ухо; Hair - волосы; Neck - шея; Shoulder - плечо; Arm - рука (от плеча); Elbow - локоть; Wrist - запястье; Hand - кисть руки; Finger - палец; Chest - грудь; Stomach - живот; Leg - нога; Knee - колено; Foot - стопа; Toe - палец ноги; Heart - сердце; Blood - кровь; Bone - кость; Muscle - мышца; Health - здоровье; Pain - боль; Medicine - лекарство` 
+},
+    level27: { 
+        title: '👁 Внешность и Характер', 
+        data: `Tall - высокий; Short - низкий  короткий; Slim - стройный; Fat - толстый; Thin - тонкий  худой; Beautiful - красивый; Ugly - уродливый; Handsome - красивый (о мужчине); Pretty - симпатичная; Curly hair - курчавые волосы; Straight hair - прямые волосы; Blue eyes - голубые глаза; Young - молодой; Old - старый; Strong - сильный; Weak - слабый; Kind - добрый; Cruel - жестокий; Polite - вежливый; Rude - грубый; Shy - застенчивый; Confident - уверенный` 
+    },
+    level28: { 
+        title: '🌳 Природа и Экология', 
+        data: `Environment - окружающая среда; Nature - природа; Planet - планета; Earth - Земля; Pollution - загрязнение; Recycle - перерабатывать; Trash - мусор; Waste - отходы; Oxygen - кислород; Climate change - изменение климата; Global warming - глобальное потепление; Species - виды (животных); Extinct - вымерший; Wildlife - дикая природа; Rainforest - тропический лес; Ocean - океан; Soil - почва; Energy - энергия; Save - спасать  сохранять; Protection - защита` 
+    },
+    level29: { 
+        title: '🎯 Хобби и увлечения', 
+        data: `Hobby - хобби; Drawing - рисование; Reading - чтение; Singing - пение; Dancing - танцы; Swimming - плавание; Playing football - играть в футбол; Playing computer games - играть в компьютерные игры; Listening to music - слушать музыку; Watching TV - смотреть телевизор; Collecting stickers - коллекционировать наклейки; Cooking - готовка; Photography - фотография; Fishing - рыбалка; Cycling - катание на велосипеде; Skateboarding - скейтбординг; Knitting - вязание; Chess - шахматы; Board games - настольные игры; Camping - походы с палаткой; Doing puzzles - собирать пазлы; Gardening - садоводство; Free time - свободное время; Interesting - интересный; Boring - скучный; Favourite - любимый` 
+    },
+level30: { 
+    title: '🧍 Внешность и части тела', 
+    data: `Head - голова; Hair - волосы; Eye - глаз; Ear - ухо; Nose - нос; Mouth - рот; Tooth - зуб; Neck - шея; Shoulder - плечо; Arm - рука (от плеча до кисти); Hand - кисть; Finger - палец; Leg - нога; Knee - колено; Foot - ступня; Toe - палец ноги; Tall - высокий; Short - низкий; Slim - стройный; Plump - пухлый; Curly hair - кудрявые волосы; Straight hair - прямые волосы; Blonde - блондин(ка); Beard - борода; Moustache - усы; Freckles - веснушки; Glasses - очки` 
+},
+level31: { 
+    title: '🩺 Здоровье и самочувствие', 
+    data: `Healthy - здоровый; Sick - больной; Ill - больной (серьёзнее); Headache - головная боль; Toothache - зубная боль; Stomach ache - боль в животе; Fever - жар  температура; Cough - кашель; Cold - простуда; Medicine - лекарство; Doctor - врач; Nurse - медсестра; Patient - пациент; Hospital - больница; Appointment - приём у врача; Feel - чувствовать себя; Better - лучше; Worse - хуже; Pain - боль; Broken leg - сломанная нога; Prescription - рецепт; Pharmacy - аптека; Rest - отдых; Stay in bed - оставаться в постели` 
+},
+level32: { 
+    title: '🚗 Транспорт', 
+    data: `Car - автомобиль; Bus - автобус; Train - поезд; Plane - самолёт; Taxi - такси; Bicycle - велосипед; Motorbike - мотоцикл; Tram - трамвай; Underground - метро; Ship - корабль; Boat - лодка; Helicopter - вертолёт; On foot - пешком; Driver - водитель; Passenger - пассажир; Station - станция  вокзал; Bus stop - автобусная остановка; Ticket - билет; Return ticket - билет туда-обратно; Single ticket - билет в один конец; Fast - быстрый; Slow - медленный; Traffic - дорожное движение; Rush hour - час пик` 
+},
+level33: { 
+    title: '⏱ Распорядок дня', 
+    data: `Wake up - просыпаться; Get up - вставать; Wash face - умываться; Brush teeth - чистить зубы; Have breakfast - завтракать; Go to school - идти в школу; Come home - приходить домой; Do homework - делать домашнее задание; Have dinner - ужинать; Watch TV - смотреть телевизор; Read a book - читать книгу; Go to bed - ложиться спать; Every day - каждый день; Usually - обычно; Always - всегда; Sometimes - иногда; Never - никогда; Then - затем; After that - после этого; In the morning - утром; In the afternoon - днём; In the evening - вечером; At night - ночью; At weekends - по выходным` 
+},
+level34: { 
+    title: '👩‍🚒 Профессии', 
+    data: `Teacher - учитель; Doctor - врач; Nurse - медсестра; Police officer - полицейский; Firefighter - пожарный; Driver - водитель; Pilot - пилот; Cook - повар; Waiter - официант; Shop assistant - продавец; Engineer - инженер; Scientist - учёный; Artist - художник; Singer - певец; Musician - музыкант; Actor - актёр; Farmer - фермер; Postman - почтальон; Builder - строитель; Dentist - зубной врач; Vet - ветеринар; Job - работа  профессия` 
+},
+level35: { 
+    title: '🌍 Страны и национальности', 
+    data: `Russia - Россия; Russian - русский  россиянин; England - Англия; English - английский  англичанин; The USA - США; American - американский  американец; France - Франция; French - французский  француз; Germany - Германия; German - немецкий  немец; Spain - Испания; Spanish - испанский  испанец; Italy - Италия; Italian - итальянский  итальянец; China - Китай; Chinese - китайский  китаец; Japan - Япония; Japanese - японский  японец; Country - страна; Nationality - национальность; Language - язык; Capital - столица; Flag - флаг` 
+},
+level36: { 
+    title: '🎉 Праздники и традиции', 
+    data: `Birthday - день рождения; New Year - Новый год; Christmas - Рождество; Easter - Пасха; Halloween - Хэллоуин; Valentines Day - День святого Валентина; Holiday - праздник  выходной; Present - подарок; Card - открытка; Decorate - украшать; Celebrate - праздновать; Invite - приглашать; Guest - гость; Party - вечеринка; Cake - торт; Candle - свеча; Balloon - воздушный шар; Fireworks - фейерверк; Costume - костюм; Sweet - конфета  сладкий` 
+},
+level37: { 
+    title: '🛒 Покупки и магазины', 
+    data: `Shop - магазин; Store - магазин (амер.); Supermarket - супермаркет; Market - рынок; Price - цена; Discount - скидка; Sale - распродажа; Cash - наличные; Credit card - кредитная карта; Receipt - чек; Change - сдача; Size - размер; Try on - примерять; Fit - подходить по размеру; Expensive - дорогой; Cheap - дешёвый; Shopping cart - тележка; Basket - корзинка; Shelf - полка; Aisle - проход; Escalator - эскалатор; Fitting room - примерочная; Shop assistant - продавец-консультант; Customer - покупатель; Queue - очередь; Refund - возврат денег; Exchange - обмен; Closed - закрыто; Open - открыто; Receipt - кассовый чек` 
+},
+level38: { 
+    title: '🏅 Спорт и фитнес', 
+    data: `Football - футбол; Basketball - баскетбол; Volleyball - волейбол; Tennis - теннис; Swimming - плавание; Running - бег; Cycling - велоспорт; Yoga - йога; Gym - тренажёрный зал; Exercise - упражнение; Training - тренировка; Coach - тренер; Team - команда; Player - игрок; Match - матч; Competition - соревнование; Win - побеждать; Lose - проигрывать; Score - счёт; Goal - гол / цель; Stadium - стадион; Ball - мяч; Racket - ракетка; Net - сетка; Helmet - шлем; Sneakers - кроссовки; Medal - медаль; Champion - чемпион; Warm-up - разминка; Stretching - растяжка` 
+},
+level39: { 
+    title: '🍳 Готовка и кухонные принадлежности', 
+    data: `Pan - сковорода; Pot - кастрюля; Lid - крышка; Knife - нож; Fork - вилка; Spoon - ложка; Plate - тарелка; Cup - чашка; Glass - стакан; Bowl - миска; Cutting board - разделочная доска; Oven - духовка; Stove - плита; Microwave - микроволновка; Fridge - холодильник; Freezer - морозилка; Kettle - чайник; Toaster - тостер; Mixer - миксер; Recipe - рецепт; Ingredient - ингредиент; Boil - кипятить / варить; Fry - жарить; Bake - печь (в духовке); Grill - готовить на гриле; Stir - помешивать; Peel - чистить (овощи); Chop - рубить / нарезать; Salt - соль; Pepper - перец; Oil - масло (растительное)` 
+},
+level40: { 
+    title: '🧹 Домашние дела', 
+    data: `Clean - чистить / убирать; Wash - мыть; Dry - сушить; Iron - гладить; Sweep - подметать; Mop - мыть шваброй; Vacuum - пылесосить; Dust - вытирать пыль; Take out the rubbish - выносить мусор; Do the laundry - стирать бельё; Hang the clothes - развешивать бельё; Fold - складывать (одежду); Tidy up - прибираться; Make the bed - заправлять постель; Wash the dishes - мыть посуду; Load the dishwasher - загружать посудомойку; Set the table - накрывать на стол; Clear the table - убирать со стола; Water the plants - поливать растения; Feed the pet - кормить питомца; Repair - чинить; Paint - красить; Broom - метла; Mop (n) - швабра; Detergent - моющее средство; Sponge - губка; Bucket - ведро` 
+},
+level41: { 
+    title: '🧰 Инструменты и материалы', 
+    data: `Hammer - молоток; Nail - гвоздь; Screw - шуруп; Screwdriver - отвёртка; Wrench - гаечный ключ; Pliers - плоскогубцы; Saw - пила; Drill - дрель; Tape measure - рулетка; Level - уровень (инструмент); Ladder - лестница; Paintbrush - кисть (для краски); Roller - валик; Paint - краска; Wood - дерево (материал); Metal - металл; Plastic - пластик; Glass - стекло; Fabric - ткань; Leather - кожа; Concrete - бетон; Glue - клей; Tape - скотч / изолента; Rope - верёвка; Wire - провод; Bulb - лампочка; Battery - батарейка; Toolbox - ящик для инструментов; Safety glasses - защитные очки; Gloves (work) - перчатки (рабочие)`
+},
+level42: { 
+    title: '🅰️ Уровень A1 (Beginner)', 
+    data: `Hello - привет; Goodbye - пока; Yes - да; No - нет; Please - пожалуйста; Thank you - спасибо; Sorry - извините; My name is... - меня зовут...; What is your name? - как вас зовут?; I am... - я...; You - ты / вы; He - он; She - она; It - это (неодуш.); We - мы; They - они; Man - мужчина; Woman - женщина; Boy - мальчик; Girl - девочка; Friend - друг; Family - семья; Mother - мать; Father - отец; Brother - брат; Sister - сестра; Dog - собака; Cat - кошка; Big - большой; Small - маленький; Good - хороший; Bad - плохой; New - новый; Old - старый; Hot - горячий; Cold - холодный; Water - вода; Food - еда; Milk - молоко; Bread - хлеб; Apple - яблоко; Red - красный; Blue - синий; Green - зелёный; One - один; Two - два; Three - три; Book - книга; Table - стол; Chair - стул; Door - дверь; Window - окно; Car - машина; House - дом; I like... - мне нравится...; I don't like... - мне не нравится...` 
+},
+level43: { 
+    title: '🅰️ Уровень A2 (Elementary)', 
+    data: `Weather - погода; Rain - дождь; Snow - снег; Wind - ветер; Cloud - облако; Sunny - солнечно; Cloudy - облачно; Cold - холодно; Hot - жарко; Clothes - одежда; Shirt - рубашка; Trousers - брюки; Dress - платье; Shoes - туфли; Hat - шапка; Shop - магазин; Buy - покупать; Sell - продавать; Price - цена; Money - деньги; Ticket - билет; Train - поезд; Bus - автобус; Plane - самолёт; Airport - аэропорт; Hotel - отель; Room - комната; Key - ключ; Breakfast - завтрак; Lunch - обед; Dinner - ужин; Waiter - официант; Menu - меню; Bill - счёт; Body - тело; Head - голова; Hand - рука (кисть); Leg - нога; Ill - больной; Doctor - врач; Medicine - лекарство; Yesterday - вчера; Today - сегодня; Tomorrow - завтра; Always - всегда; Never - никогда; Often - часто; Sometimes - иногда; Because - потому что; But - но; So - так что; Can - мочь; Must - должен; I would like... - я хотел бы...; How much...? - сколько...?; Excuse me... - извините... (обращение)` 
+},
+level44: { 
+    title: '🅱️ Уровень B1 (Intermediate)', 
+    data: `Experience - опыт; Education - образование; University - университет; Job - работа; Colleague - коллега; Meeting - встреча; Project - проект; Deadline - крайний срок; Plan - план; Decide - решать; Advice - совет; Agree - соглашаться; Refuse - отказываться; Relationship - отношения; Married - женат / замужем; Single - холост / не замужем; Character - характер; Honest - честный; Lazy - ленивый; Brave - храбрый; Environment - окружающая среда; Pollution - загрязнение; Recycle - перерабатывать; Energy - энергия; Nature - природа; Abroad - за границей; Flight - полёт; Sightseeing - осмотр достопримечательностей; Culture - культура; Tradition - традиция; Celebrate - праздновать; Wedding - свадьба; Invitation - приглашение; Hobby - хобби; Photography - фотография; Cooking - готовка; Cycling - велоспорт; Gym - спортзал; Healthy - здоровый; Habit - привычка; Emotional - эмоциональный; Stressed - напряжённый; Relaxed - расслабленный; Opportunity - возможность; Risk - риск; Although - хотя; In my opinion... - по моему мнению...; I'm fond of... - я увлекаюсь...` 
+},
+level45: { 
+    title: '🅱️ Уровень B2 (Upper‑Intermediate)', 
+    data: `Achievement - достижение; Challenge - вызов / сложность; Solution - решение (проблемы); Research - исследование; Development - развитие; Society - общество; Government - правительство; Law - закон; Right - право (юр.); Responsibility - ответственность; Employment - занятость; Unemployment - безработица; Inflation - инфляция; Profit - прибыль; Investment - инвестиция; Technology - технология; Device - устройство; Artificial intelligence - искусственный интеллект; Data - данные; Privacy - конфиденциальность; Social media - социальные сети; Influence - влияние; Attitude - отношение; Prejudice - предубеждение; Persuade - убеждать; Complain - жаловаться; Apologise - извиняться; Negotiate - вести переговоры; Inspire - вдохновлять; Motivation - мотивация; Career - карьера; Qualification - квалификация; Interview - собеседование; Efficient - эффективный; Flexible - гибкий; Reliable - надёжный; Independent - независимый; Global - мировой; Current - текущий / современный; Trend - тенденция; Crisis - кризис; Furthermore - более того; Nevertheless - тем не менее; In contrast - в противоположность; As a result - в результате; I strongly believe... - я твёрдо уверен...; It is widely known that... - широко известно, что...` 
+},
+level46: { 
+    title: '🇨 Уровень C1 (Advanced)', 
+    data: `To tackle an issue - решать проблему; To address a concern - рассмотреть беспокоящий вопрос; To put emphasis on... - делать акцент на...; To draw a conclusion - делать вывод; To reach a consensus - прийти к консенсусу; To implement a policy - внедрять политику; Sustainable - устойчивый; Viable - жизнеспособный; Inevitable - неизбежный; Controversial - противоречивый; Beneficial - выгодный; Detrimental - пагубный; Predominantly - преимущественно; Consequently - следовательно; Nonetheless - тем не менее; To a certain extent - в определённой степени; In the long run - в долгосрочной перспективе; Cutting‑edge - передовой; Outdated - устаревший; To disrupt - подрывать / разрушать; To innovate - внедрять новшества; Bureaucracy - бюрократия; Inequality - неравенство; Discrimination - дискриминация; Integration - интеграция; Stereotype - стереотип; Empathy - сочувствие; Resilience - устойчивость; To foster - способствовать развитию; To hinder - препятствовать; Explicit - явный; Implicit - скрытый; Ambiguous - двусмысленный; Precise - точный; Nuance - нюанс; Dilemma - дилемма; To weigh the pros and cons - взвесить за и против; A double‑edged sword - палка о двух концах; On the one hand... on the other hand... - с одной стороны... с другой стороны...; It is worth noting that... - стоит отметить, что...; The vast majority - подавляющее большинство; A great deal of... - большое количество (с неисчисл.); In vain - напрасно; By heart - наизусть; All of a sudden - внезапно; To get the hang of something - освоиться с чем‑либо` 
+}
+	
+};
+
+// ============================================
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// ============================================
+let currentMode = 'learn';
+let wordsList = [];
+let currentIndex = 0;
+let totalWordsInSession = 0;
+let sessionTotalCount = 0;
+let currentLevelKey = '';
+
+// Таймеры (объявлены глобально для надёжной очистки)
+let autoNextTimeout = null;
+let safetyTimeout = null;
+let pauseTimeout = null;
+let speakTimeout = null;
+
+// Флаг активности: если false — все операции прекращаются
+let isTrainerActive = false;
+
+// Проверка поддержки SpeechSynthesis
+const isSpeechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+
+// ============================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================
+
+function toggleExclusive(clickedElement, otherId) {
+    const otherElement = document.getElementById(otherId);
+    if (otherElement && clickedElement.checked) {
+        otherElement.checked = false;
+    }
+}
+
+/**
+ * Исправленный парсинг: разделяет только по ПЕРВОМУ вхождению ' - '
+ * Это позволяет корректно обрабатывать слова типа "Mother-in-law"
+ */
+function parseWords(text) {
+    if (!text) return [];
+    return text.split(';').map(p => {
+        p = p.trim();
+        if (!p) return null;
+        
+        const dashIndex = p.indexOf(' - ');
+        if (dashIndex > -1) {
+            return { 
+                en: p.slice(0, dashIndex).trim(), 
+                ru: p.slice(dashIndex + 3).trim() 
+            };
+        }
+        return null;
+    }).filter(w => w !== null && w.en && w.ru);
+}
+
+function showError(elementId, message) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.textContent = message;
+        // Скрыть ошибку через 5 секунд
+        setTimeout(() => { if (el.textContent === message) el.textContent = ''; }, 5000);
+    }
+}
+
+function clearAllTimers() {
+    [autoNextTimeout, safetyTimeout, pauseTimeout, speakTimeout].forEach(t => clearTimeout(t));
+    autoNextTimeout = safetyTimeout = pauseTimeout = speakTimeout = null;
+}
+
+/**
+ * Полная остановка: синтез речи, таймеры, сброс флагов
+ */
+function forceStopAll() {
+    isTrainerActive = false;
+    
+    // Остановка синтеза речи
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        // На некоторых браузерах нужен resume перед cancel
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+            setTimeout(() => window.speechSynthesis.cancel(), 50);
+        }
+    }
+    
+    clearAllTimers();
+    
+    // Сброс визуальных состояний
+    const wordEn = document.getElementById('word-en');
+    if (wordEn) wordEn.classList.remove('speaking');
+    const wordRu = document.getElementById('word-ru');
+    if (wordRu) wordRu.classList.remove('visible');
+}
+
+// ============================================
+// ИНИЦИАЛИЗАЦИЯ И НАВИГАЦИЯ
+// ============================================
+
+function initMenu() {
+    forceStopAll();
+    sessionTotalCount = 0;
+    
+    const list = document.getElementById('levels-list');
+    const errorEl = document.getElementById('menu-error');
+    
+    if (!list) return;
+    
+    list.innerHTML = '';
+    errorEl.textContent = '';
+    
+    // Проверка поддержки синтеза речи
+    if (!isSpeechSupported) {
+        showError('menu-error', '⚠️ Ваш браузер не поддерживает озвучку. Попробуйте Chrome, Edge или Safari.');
+    }
+    
+    Object.entries(WORD_LEVELS).forEach(([key, level]) => {
+        // Кэшируем распарсенные слова, чтобы не парсить каждый раз
+        if (!level.parsed) {
+            level.parsed = parseWords(level.data);
+        }
+        
+        const wordsCount = level.parsed.length;
+        if (wordsCount === 0) return;
+        
+        const btn = document.createElement('button');
+        btn.className = 'level-btn';
+        btn.textContent = `${level.title} (${wordsCount} слов)`;
+        btn.setAttribute('aria-label', `Начать уровень: ${level.title}`);
+        btn.onclick = () => startLevel(key);
+        list.appendChild(btn);
+    });
+    
+    if (list.children.length === 0) {
+        showError('menu-error', '❌ Нет доступных тем для изучения.');
+    }
+    
+    showScreen('menu-screen');
+}
+
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById(id);
+    if (target) {
+        target.classList.add('active');
+        // Для доступности: фокус на заголовок экрана
+        const heading = target.querySelector('h1');
+        if (heading) heading.focus?.();
+    }
+}
+
+// ============================================
+// ЛОГИКА ТРЕНАЖЁРА
+// ============================================
+
+function startLevel(key) {
+    if (!isSpeechSupported) {
+        showError('menu-error', 'Озвучка не поддерживается этим браузером.');
+        return;
+    }
+    
+    isTrainerActive = true;
+    currentLevelKey = key;
+    
+    const level = WORD_LEVELS[key];
+    if (!level || !level.parsed || level.parsed.length === 0) {
+        showError('menu-error', '❌ Тема пуста или не загружена.');
+        isTrainerActive = false;
+        return;
+    }
+    
+    // Копируем и перемешиваем массив (алгоритм Фишера-Йейтса)
+    wordsList = [...level.parsed];
+    for (let i = wordsList.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [wordsList[i], wordsList[j]] = [wordsList[j], wordsList[i]];
+    }
+
+    totalWordsInSession = wordsList.length;
+    currentIndex = 0;
+    
+    updateProgressBar();
+    showScreen('trainer-screen');
+    
+    // Небольшая задержка для плавности перед стартом аудио
+    speakTimeout = setTimeout(() => {
+        if (isTrainerActive) showCurrentWord();
+    }, 150);
+}
+
+function showCurrentWord() {
+    if (!isTrainerActive) return;
+    
+    // Очищаем таймеры перед показом нового слова
+    clearAllTimers();
+
+    if (currentIndex >= totalWordsInSession) {
+        handleLevelEnd();
+        return;
+    }
+    
+    const word = wordsList[currentIndex];
+    const wordEnEl = document.getElementById('word-en');
+    const wordRuEl = document.getElementById('word-ru');
+    
+    if (!wordEnEl || !wordRuEl) return;
+    
+    // Сброс UI
+    wordRuEl.classList.remove('visible');
+    wordEnEl.classList.remove('speaking');
+    wordEnEl.textContent = word.en;
+    wordRuEl.textContent = word.ru;
+    
+    updateProgressBar();
+    
+    speakCurrentWord(word);
+}
+
+function handleLevelEnd() {
+    if (!isTrainerActive) return;
+    
+    const loopSame = document.getElementById('loop-same-theme')?.checked;
+    const loopRandom = document.getElementById('loop-random-themes')?.checked;
+    
+    sessionTotalCount += totalWordsInSession;
+    
+    // Пауза перед перезапуском или финалом
+    speakTimeout = setTimeout(() => {
+        if (!isTrainerActive) return;
+        
+        if (loopSame) {
+            startLevel(currentLevelKey);
+        } else if (loopRandom) {
+            const keys = Object.keys(WORD_LEVELS);
+            if (keys.length > 0) {
+                let nextKey;
+                do {
+                    nextKey = keys[Math.floor(Math.random() * keys.length)];
+                } while (nextKey === currentLevelKey && keys.length > 1);
+                startLevel(nextKey);
+            } else {
+                finish();
+            }
+        } else {
+            finish();
+        }
+    }, 800);
+}
+
+function speakCurrentWord(word) {
+    if (!isTrainerActive || !isSpeechSupported) return;
+
+    const wordEnEl = document.getElementById('word-en');
+    
+    // Флаг для предотвращения двойных переходов
+    let transitioning = false;
+    let ruSpoken = false;
+
+    const nextWordAction = () => {
+        if (!isTrainerActive || transitioning) return;
+        transitioning = true;
+        clearAllTimers();
+        if (wordEnEl) wordEnEl.classList.remove('speaking');
+        currentIndex++;
+        showCurrentWord();
+    };
+
+    const forceNextWord = (reason) => {
+        if (!isTrainerActive || transitioning) return;
+        console.warn(`Speech error/timeout: ${reason}. Skipping to next word.`);
+        showError('trainer-error', '⚠️ Ошибка озвучки, пропускаем...');
+        clearAllTimers();
+        transitioning = true;
+        if (wordEnEl) wordEnEl.classList.remove('speaking');
+        autoNextTimeout = setTimeout(nextWordAction, 300);
+    };
+
+    // Таймер безопасности: если аудио зависло
+    const safetyMs = currentMode === 'review' ? 15000 : 8000;
+    safetyTimeout = setTimeout(() => forceNextWord('timeout'), safetyMs);
+
+    // --- Озвучка английского слова ---
+    try {
+        const enUtterance = new SpeechSynthesisUtterance(word.en);
+        enUtterance.lang = 'en-US';
+        enUtterance.rate = currentMode === 'review' ? 0.9 : 0.85;
+        enUtterance.pitch = 1;
+
+        enUtterance.onstart = () => {
+            if (!isTrainerActive || transitioning) return;
+            if (wordEnEl) wordEnEl.classList.add('speaking');
+            // Сброс таймера безопасности при успешном старте
+            clearTimeout(safetyTimeout);
+        };
+
+        enUtterance.onend = () => {
+            if (!isTrainerActive || transitioning) return;
+            if (wordEnEl) wordEnEl.classList.remove('speaking');
+            
+            const pauseMs = currentMode === 'review' ? 1100 : 0;
+            
+            const showAndSpeakRu = () => {
+                if (!isTrainerActive || transitioning || ruSpoken) return;
+                ruSpoken = true;
+                
+                const wordRuEl = document.getElementById('word-ru');
+                if (wordRuEl) wordRuEl.classList.add('visible');
+                
+                // --- Озвучка русского перевода ---
+                try {
+                    const ruUtterance = new SpeechSynthesisUtterance(word.ru);
+                    ruUtterance.lang = 'ru-RU';
+                    ruUtterance.rate = 0.9;
+                    ruUtterance.pitch = 1;
+
+                    ruUtterance.onend = () => {
+                        if (!isTrainerActive || transitioning) return;
+                        autoNextTimeout = setTimeout(nextWordAction, MODES[currentMode].autoNextDelay);
+                    };
+                    
+                    ruUtterance.onerror = (e) => forceNextWord(`ru-onerror: ${e.error}`);
+                    window.speechSynthesis.speak(ruUtterance);
+                    
+                } catch (e) {
+                    console.error('RU speech error:', e);
+                    forceNextWord('ru-exception');
+                }
+            };
+
+            if (pauseMs === 0) {
+                showAndSpeakRu();
+            } else {
+                pauseTimeout = setTimeout(showAndSpeakRu, pauseMs);
+            }
+        };
+
+        enUtterance.onerror = (e) => {
+            console.error('EN speech error:', e);
+            forceNextWord(`en-onerror: ${e.error}`);
+        };
+        
+        // Защита от зависания синтезатора на мобильных
+        if (window.speechSynthesis.pending) {
+            window.speechSynthesis.cancel();
+            setTimeout(() => window.speechSynthesis.speak(enUtterance), 50);
+        } else {
+            window.speechSynthesis.speak(enUtterance);
+        }
+        
+    } catch (e) {
+        console.error('Speech synthesis exception:', e);
+        showError('trainer-error', '❌ Ошибка синтеза речи. Проверьте настройки устройства.');
+        // Если синтез полностью не работает, просто показываем слова с задержкой
+        wordEnEl?.classList.add('speaking');
+        pauseTimeout = setTimeout(() => {
+            wordEnEl?.classList.remove('speaking');
+            document.getElementById('word-ru')?.classList.add('visible');
+            autoNextTimeout = setTimeout(nextWordAction, MODES[currentMode].autoNextDelay + 1000);
+        }, 2000);
+    }
+}
+
+function updateProgressBar() {
+    const bar = document.getElementById('progress-bar');
+    if (!bar || totalWordsInSession === 0) return;
+    
+    const percent = Math.min(100, Math.max(0, ((currentIndex + 1) / totalWordsInSession) * 100));
+    bar.style.width = `${percent}%`;
+    bar.setAttribute('aria-valuenow', Math.round(percent));
+}
+
+function finish() {
+    isTrainerActive = false;
+    showScreen('result-screen');
+    const scoreEl = document.getElementById('final-score');
+    if (scoreEl) scoreEl.textContent = `Пройдено: ${sessionTotalCount}`;
+    document.getElementById('progress-bar').style.width = '0%';
+}
+
+function returnToMenu() {
+    forceStopAll();
+    sessionTotalCount = 0;
+    initMenu();
+}
+
+function setMode(mode) {
+    currentMode = mode;
+    const btnLearn = document.getElementById('mode-learn');
+    const btnReview = document.getElementById('mode-review');
+    
+    if (btnLearn) {
+        btnLearn.classList.toggle('active', mode === 'learn');
+        btnLearn.setAttribute('aria-pressed', mode === 'learn');
+    }
+    if (btnReview) {
+        btnReview.classList.toggle('active', mode === 'review');
+        btnReview.setAttribute('aria-pressed', mode === 'review');
+    }
+}
+
+// Инициализация при загрузке
+window.addEventListener('load', initMenu);
+
+// Очистка при выгрузке страницы (на случай, если пользователь закроет вкладку)
+window.addEventListener('beforeunload', forceStopAll);
+
+// Обработка блокировки экрана на мобильных (восстановление синтеза)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isTrainerActive && window.speechSynthesis?.paused) {
+        window.speechSynthesis.resume();
+    }
+});
+</script>
+</body>
+</html>
