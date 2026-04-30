@@ -8,8 +8,6 @@
     <meta name="apple-mobile-web-app-status-bar-opaque" content="yes">
     <meta name="apple-mobile-web-app-title" content="Тренажёр">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="https://cdn.icons-png.flaticon.com/512/3898/3898084.png">
-    <link rel="icon" href="https://cdn.icons-png.flaticon.com/512/3898/3898084.png">
     <style>
         :root { --primary: #2c6e9b; --secondary: #4a9eff; --bg: #f8fbff; --card-bg: rgba(255, 255, 255, 0.95); --text: #1e2f3e; --danger: #e74c3c; }
         * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -568,7 +566,7 @@ function speakCurrentWord(word) {
     };
 
     // Таймер безопасности: если аудио зависло
-    const safetyMs = currentMode === 'review' ? 15000 : 8000;
+    const safetyMs = currentMode === 'review' ? 12000 : 15000;
     safetyTimeout = setTimeout(() => forceNextWord('timeout'), safetyMs);
 
     // --- Озвучка английского слова ---
